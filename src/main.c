@@ -21,26 +21,27 @@ enum state programState = WAITING;
 
 // Tehtävä 3: Valoisuuden globaali muuttuja
 uint32_t ambientLight;
+char morseBuffer[64];
 
 static void btn_fxn(uint gpio, uint32_t eventMask) {
-    // Tehtävä 1: Vaihda LEDin tila käyttämällä TKJHAT SDK:n sopivaa funktiota.
     // btn_fxn vastaanottaa napin merkin? viiva ja piste
     // tallennetaan mihin? Bittirekisteriin? muuhun muuttujaan? 
 
     // btn_fxn ottaa napinpainalluksen -> sensor_task havaitsee ees taas heilutuksen ja tulkitsee välilyöntimerkit -> sensor_task havaitsee ylösalan heilutuksen ja lisää viestiin \n ja lähettää usbilla viestin
-    // 
+    // ICM42670_I2C_ADDRESS (0x69)
 
-
+    printf("\nButton pressed: %d", gpio);
     uint8_t pinValue = gpio_get(LED1);
     pinValue = !pinValue;
     gpio_put(LED1, pinValue);
+
 }
 
 static void sensor_task(void *arg){
-    // Tehtävä 2: Alusta valoisuusanturi. Etsi SDK-dokumentaatiosta sopiva funktio.
-    init_veml6030;
 
-    // alusta gyroskooppianturi
+    // Alusta gyroskooppianturi ICM42670_I2C_ADDRESS (0x69)
+    init_ICM42670;
+    init_veml6030;
     
     for(;;){
         
@@ -55,7 +56,7 @@ static void sensor_task(void *arg){
         //             Sen jälkeen muuta tilaa.
 
         ambientLight = veml6030_read_light();
-        // printf("state = dataready\n"); debug
+        printf("state = dataready\n"); //debug
         programState = DATA_READY;
 
 
@@ -109,11 +110,14 @@ int main() {
 
         gpio_init(BUTTON1);
         gpio_set_dir(BUTTON1, GPIO_IN);
+        gpio_init(BUTTON2);
+        gpio_set_dir(BUTTON2, GPIO_IN);
     
         gpio_init(LED1);
         gpio_set_dir(LED1, GPIO_OUT);
 
     gpio_set_irq_enabled_with_callback(BUTTON1, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
+    gpio_set_irq_enabled_with_callback(BUTTON2, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
 
 
     
