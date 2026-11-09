@@ -24,6 +24,12 @@ uint32_t ambientLight;
 
 static void btn_fxn(uint gpio, uint32_t eventMask) {
     // Tehtävä 1: Vaihda LEDin tila käyttämällä TKJHAT SDK:n sopivaa funktiota.
+    // btn_fxn vastaanottaa napin merkin? viiva ja piste
+    // tallennetaan mihin? Bittirekisteriin? muuhun muuttujaan? 
+
+    // btn_fxn ottaa napinpainalluksen -> sensor_task havaitsee ees taas heilutuksen ja tulkitsee välilyöntimerkit -> sensor_task havaitsee ylösalan heilutuksen ja lisää viestiin \n ja lähettää usbilla viestin
+    // 
+
 
     uint8_t pinValue = gpio_get(LED1);
     pinValue = !pinValue;
@@ -32,8 +38,9 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
 
 static void sensor_task(void *arg){
     // Tehtävä 2: Alusta valoisuusanturi. Etsi SDK-dokumentaatiosta sopiva funktio.
-    // Exercise 2: Init the light sensor. Find in the SDK documentation the adequate function.
     init_veml6030;
+
+    // alusta gyroskooppianturi
     
     for(;;){
         
