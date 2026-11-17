@@ -16,15 +16,13 @@
 #define CDC_ITF_TX      1
 #define DEBOUNCE_MS 200
 
-// Tehtävä 3: Tilakoneen esittely Add missing states.
+// Tilakone
 enum state { WAITING=1, DATA_READY = 2, DASH_PRESSED = 3, DOT_PRESSED = 4, ADD_SPACE = 5, ADD_FINAL_MARK = 6, SENDING = 7};
 enum state programState = WAITING;
 
 static volatile uint32_t lastButtonTime = 0;
 
-// Tehtävä 3: Valoisuuden globaali muuttuja
-uint32_t ambientLight;
-uint32_t movement;
+// gyroskoopin muuttujat
 typedef struct {
     float ax;
     float ay;
@@ -36,10 +34,8 @@ typedef struct {
 } imu_sample_t;
 imu_sample_t sample;
 
-static void btn_fxn(uint gpio, uint32_t eventMask) { // piste
-    // btn_fxn vastaanottaa napin merkin? viiva ja piste
-    // tallennetaan mihin? Bittirekisteriin? muuhun muuttujaan? 
-    // btn_fxn ottaa napinpainalluksen -> sensor_task havaitsee ees taas heilutuksen ja tulkitsee välilyöntimerkit -> sensor_task havaitsee ylösalan heilutuksen ja lisää viestiin \n ja lähettää usbilla viestin
+// Btn_fxn käsittelee kummankin nappin painallukset, ja tulkitsee niistä viivan ja pisteen
+static void btn_fxn(uint gpio, uint32_t eventMask) { 
 
     // Debounce logiikka
     uint32_t now = to_ms_since_boot(get_absolute_time());
@@ -48,62 +44,69 @@ static void btn_fxn(uint gpio, uint32_t eventMask) { // piste
     }
     lastButtonTime = now;
 
-    if (gpio == BUTTON1) {          // piste
-        gpio_put(LED1, !gpio_get(LED1)); // testaushommeleita 
+    // nappien erottelulogiikka
+    if (gpio == BUTTON1) {                  // piste
+        gpio_put(LED1, !gpio_get(LED1));    // testaushommeleita 
         printf("Dot: .\n");
         programState = DOT_PRESSED;
         // LISÄÄ MERKKIJONOON PISTE
-    } else if (gpio == BUTTON2) {   // viiva
+    } else if (gpio == BUTTON2) {           // viiva
         printf("Dash: -\n");
         programState = DASH_PRESSED;
         // LISÄÄ MERKKIJONOON VIIVA
     }
 }
 
-static void has_dropped(){ // lähetys lisäys
+// funktio, joka tunnistaa kun pico tiputetaan -> viestin lähetys
+static void has_dropped(){ 
 
+    // seuraavalla logiikalla: 
     // pyyhi merkkijonon perä tyhjäksi välilyönneistä -> lisää 2x välilyönti ja rivivaihtomerkki -> lähetä
     // jos merkkijono tyhjä -> ignore (debounce jos vahingossa sensori havaitsee 2 kertaa putkeen)
     printf("Pico Dropper -> lähetä viesti\n");
     programState = ADD_FINAL_MARK;
 }
 
-static void pickup_upright(){ // välilyönnin lisäys
+// funktio joka tunnistaa kun pico nostetaan pystyyn -> lisää välilyönti
+static void pickup_upright(){
     printf("Upright picked up\n");
     // LISÄÄ VÄLILYÖNTI
     programState = ADD_SPACE;
 }
 
-
+// funktio, joka tulkitsee gyroskoopin ja kiihtyvyysnaturin dataa
 static void sensor_task(void *arg){
 
+    // alustukset
     init_ICM42670();
     ICM42670_start_with_default_values();
-    // välilyönti kun pico nostetaan pystyyn -> 3x välilyöntiä = 2x välilyöntiä + rivinvaihtomerkki
+    // välilyönti kun pico nostetaan pystyyn
     // tiputtaminen = lähetys
     bool wasUpright = false;
 
     for(;;){
 
+        // luetaan sensorin data "sample"-tietueen alkioista
         if (ICM42670_read_sensor_data(&sample.ax, &sample.ay, &sample.az, &sample.gx, &sample.gy, &sample.gz, &sample.temperature) != 0) {    
             printf("Failed to read imu data\n");    
         }
 
-        // ylöspäin nosto -> välilyönnin lisäys
+        // nokka ylöspäin nosto -> välilyönnin lisäys
+        //                          arvot siis 0 < x < 1
         bool upright = fabsf(sample.ay) > 0.875; 
-        if (fabsf(sample.ay) > 0.875 && !wasUpright) {
+        if (fabsf(sample.ay) > 0.875 && !wasUpright) {      // wasUpright boolean debouncea varten -> vain 1kpl ylöspäin nosto per ylöspäin nosto
             pickup_upright();
             wasUpright = true;
-        } else if (fabsf(sample.ay) < 0.6 && wasUpright) {
+        } else if (fabsf(sample.ay) < 0.6 && wasUpright) {  // tunnistetaan kun pico takaisin maassa
             printf("Pico is no longer upright\n");
             wasUpright = false;
         }
 
         // tiputtaminen -> lähetys
+        // anturi tuottaa arvon -250 < x < 250, ja tiputuksissa y ja x akseli yleensä on ne arvot jotka nousee eniten
         if ((abs(sample.gy) + abs(sample.gx)) > 305){ 
             has_dropped();
             programState = ADD_FINAL_MARK;
-        //} else if (!upright && wasUpright) {
         } 
         
 
@@ -114,6 +117,7 @@ static void sensor_task(void *arg){
 }
 
 
+// pelkkää printtausta varten
 static void print_task(void *arg){
     
     while(1){
@@ -126,6 +130,7 @@ static void print_task(void *arg){
     }
 }
 
+
 int main() {
 
     stdio_init_all();
@@ -134,6 +139,7 @@ int main() {
         sleep_ms(10);
     }*/
     
+    // alustukset
     init_hat_sdk();
     sleep_ms(300); //Wait some time so initialization of USB and hat is done.
 
@@ -142,15 +148,16 @@ int main() {
     gpio_init(BUTTON2);
     gpio_set_dir(BUTTON2, GPIO_IN);
 
-    // jäänne, voi pyyhkiä
+    // jäänne, vois käytännössä pyyhkiä
     gpio_init(LED1);
     gpio_set_dir(LED1, GPIO_OUT);
 
+    // kummatki napit tohon btn_fxn:n
     gpio_set_irq_enabled_with_callback(BUTTON1, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
     gpio_set_irq_enabled(BUTTON2, GPIO_IRQ_EDGE_FALL, true);
 
     
-    TaskHandle_t hSensorTask, hPrintTask, hMessageTask = NULL;
+    TaskHandle_t hSensorTask, hPrintTask = NULL;
 
     // Create the tasks with xTaskCreate
     BaseType_t result = xTaskCreate(sensor_task, // (en) Task function
